@@ -24,7 +24,7 @@ func (server relayServer) Start() {
 
 		// Print Address
 		go func(conn net.Conn) {
-			println(conn.LocalAddr().String())
+			println(conn.RemoteAddr().String())
 		}(conn)
 	}
 

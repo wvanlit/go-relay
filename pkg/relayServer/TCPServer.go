@@ -7,4 +7,4 @@ func CreateTCPServer(port string) RelayServer {
 			port:    ":" + port,
 		},
 	}
-}	
+}
