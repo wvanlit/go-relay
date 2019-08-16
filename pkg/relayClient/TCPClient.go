@@ -1,11 +1,13 @@
 package relayClient
 
-func CreateTCPClient(address string, port string) RelayClient {
+func CreateTCPClient(hostname string, address string, port string, messageSize int) RelayClient {
 	return RelayClient{
 		relayClient{
-			network: "tcp",
-			address: address,
-			port:    port,
+			network:     "tcp",
+			address:     address,
+			port:        port,
+			hostname:    hostname,
+			messageSize: messageSize,
 		},
 	}
 }

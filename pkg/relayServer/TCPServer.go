@@ -5,6 +5,7 @@ func CreateTCPServer(port string) RelayServer {
 		relayServer{
 			network: "tcp",
 			port:    ":" + port,
+			clients: map[string]Client{},
 		},
 	}
 }

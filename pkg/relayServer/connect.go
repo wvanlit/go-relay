@@ -6,8 +6,26 @@ import (
 	"net"
 )
 
-func (server relayServer) Start() {
-	fmt.Println("Starting Server")
+func MessageClient(conn net.Conn, message []byte){
+	_, err := conn.Write(message)
+	if err != nil{
+		log.Println(err)
+	}
+}
+
+func ReadClientMessage(conn net.Conn, data *[]byte) bool{
+	_, err := conn.Read(*data)
+	if err != nil{
+		log.Println(err)
+		return false
+	}
+	if len(*data) <= 0{
+		return false
+	}
+	return true
+}
+
+func (server relayServer) Run() {
 	listen, err := net.Listen(server.network, server.port)
 	if err != nil {
 		log.Fatal(err)
@@ -21,11 +39,8 @@ func (server relayServer) Start() {
 		if err != nil {
 			log.Fatal(err)
 		}
-
-		// Print Address
-		go func(conn net.Conn) {
-			println(conn.RemoteAddr().String())
-		}(conn)
+		// Handle Connection
+		go server.HandleConnection(conn)
 	}
-
 }
+
