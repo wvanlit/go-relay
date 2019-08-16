@@ -6,6 +6,6 @@ import(
 
 func main(){
 	// Create Server
-	relay := relayServer.CreateRelayServer()
+	relay := relayServer.CreateTCPServer("2019")
 	relay.Start()
 }
