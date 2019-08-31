@@ -31,7 +31,7 @@ func (client RelayClient) Send(message []byte) {
 	}
 }
 
-func (client RelayClient) Read(message []byte) int{
+func (client RelayClient) Read(message []byte) int {
 	n, err := client.Connection.Read(message)
 	// Check if there is an error that is not a timeout
 	if err != nil && !strings.Contains(err.Error(), "timeout") {
@@ -44,8 +44,9 @@ func (client RelayClient) Identify() bool {
 	client.Send([]byte(fmt.Sprint(client.hostname, "|", client.messageSize)))
 	data := make([]byte, 100)
 	client.Read(data)
-	if string(data) != "OK"{
-		fmt.Println(string(data))
+	trimmedData := strings.TrimSpace(string(data))
+	if !strings.Contains(trimmedData, "OK") {
+		fmt.Println(trimmedData)
 		return false
 	}
 

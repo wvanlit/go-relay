@@ -17,7 +17,17 @@ type Client struct {
 	requests    chan string
 	results     chan net.Conn
 	connection  net.Conn
+	busy        bool
 }
+
+// Connection Response codes
+type connectionResponse int
+
+const (
+	OK    connectionResponse = 0
+	CLOSE connectionResponse = 1
+	ERROR connectionResponse = 2
+)
 
 func (server relayServer) createClient(id string, messageSize int, address string, port string) (Client, error) {
 	// Check for existing clients with the same ID
@@ -34,6 +44,7 @@ func (server relayServer) createClient(id string, messageSize int, address strin
 		port:        port,
 		requests:    make(chan string),
 		results:     make(chan net.Conn),
+		busy:        false,
 	}
 
 	// Add client to list of clients
@@ -55,7 +66,7 @@ func (server relayServer) HandleConnection(conn net.Conn) {
 	defer conn.Close()
 
 	// Identify Connection
-	fmt.Println("New Address Connected:",conn.RemoteAddr().String())
+	fmt.Println("New Address Connected:", conn.RemoteAddr().String())
 
 	// Create New Client
 	data := make([]byte, 100)
@@ -63,49 +74,112 @@ func (server relayServer) HandleConnection(conn net.Conn) {
 
 	// Parse Data
 	identity := strings.Split(string(data), "|")
-	messageSize, err := strconv.ParseInt(strings.TrimRight(identity[1], "\x00"), 10, 64)
-	if err != nil {
-		log.Println(err)
+	messageSize, parseError := strconv.ParseInt(strings.TrimRight(identity[1], "\x00"), 10, 64)
+	if parseError != nil {
+		log.Println(parseError)
 		return
 	}
 	// Get Address Data
 	address := strings.Split(conn.RemoteAddr().String(), ":")
 
 	// Create New Client
-	client, err := server.createClient(identity[0], int(messageSize), address[0], address[1])
+	client, creationError := server.createClient(identity[0], int(messageSize), address[0], address[1])
 
 	// Report Outcome to Client
-	if err != nil {
-		log.Println(err)
-		MessageClient(conn, []byte(err.Error()))
-		conn.Close()
+	if creationError != nil {
+		log.Println(creationError)
+		MessageClient(conn, []byte(creationError.Error()))
+		_ = conn.Close()
 		return
+
 	} else {
 		MessageClient(conn, []byte("OK"))
-		defer func() {
-			fmt.Println("Closing", client.id)
-			delete(server.clients, client.id)
-		}()
 		client.connection = conn
+		defer func() {
+			fmt.Println("Closing", client.id, "and deleting it from current clients")
+			_ = conn.Close()
+			delete(server.clients, client.id)
+			fmt.Println(server.clients)
+		}()
 	}
-	// Read Data
+
+	// Create Channels
+	connectionData := make(chan string)
+	responses := make(chan connectionResponse)
+
+	// Retrieve Data
+	go retrieveData(client, connectionData)
+
+	// Handle Data
+	go func() {
+		for {
+			select {
+			case data := <-connectionData:
+				response := server.HandleMessage(client, data)
+				fmt.Println(response)
+				responses <- response
+				if response == CLOSE {
+					break
+				}
+			}
+		}
+	}()
+
+	// Handle Responses
+	open := true
+	for open{
+		select {
+		case response := <-responses:
+			switch response {
+			case CLOSE:
+				fmt.Println("CLOSING CONNECTION")
+				open = false
+				break
+			}
+		}
+	}
+}
+
+func retrieveData(client Client, output chan string) {
+	conn := client.connection
 	for {
+		// Start retrieving data
+		if client.busy {
+			continue
+		}
+
 		select {
 		case request := <-client.requests:
-			fmt.Println("Gotten Request:",request)
-			client.results <- client.connection
+			fmt.Println("Gotten Request:", request)
+
+			// Handle different requests
+			switch request {
+			case "pipe":
+				client.results <- client.connection
+				client.busy = true
+			case "pipe close":
+				client.busy = false
+			}
+
+
 		default:
 			data := make([]byte, client.messageSize)
 			// Read data from connection
-			n, err := conn.Read(data)
-			// If data is received, print it
-			if err != nil && err != io.EOF {
-				log.Println(err.Error())
+			n, readError := conn.Read(data)
 
-				return
+			// Handle potential errors
+			if readError != nil {
+				if strings.Contains(readError.Error(), "timeout") {
+					continue
+				} else if readError != io.EOF {
+					log.Println(readError.Error())
+					return
+				}
 			}
+
+			// Handle the message if data is received
 			if n > 0 {
-				server.HandleMessage(client, string(data[:n]))
+				output <- string(data[:n])
 			}
 
 		}
@@ -113,26 +187,45 @@ func (server relayServer) HandleConnection(conn net.Conn) {
 	}
 }
 
-func (server relayServer) HandleMessage(client Client, message string) {
+func (server relayServer) HandleMessage(client Client, message string) connectionResponse {
 	switch {
-	// Connection Request
-	case strings.Contains(message, "conn:"):
+	// Pipe Request
+	case strings.Contains(message, "PIPE:"):
 		// Find Client
 		id := strings.Split(message, ":")[1]
 		pipeClient, err := server.FindClient(id)
 		if err != nil {
 			log.Println(err)
-			return
+			return ERROR
 		}
 		// Send Request
 		pipeClient.requests <- "pipe"
+
 		// Get Request Answer
 		pipeConnection := <-pipeClient.results
+
 		// Create Pipe
-		fmt.Println("Starting Pipe between",pipeClient.id,pipeConnection.RemoteAddr(),"and",client.id,client.connection.RemoteAddr())
+		fmt.Println("Starting Pipe between", pipeClient.id, "(", pipeConnection.RemoteAddr(), ") and", client.id, "(", client.connection.RemoteAddr(), ")")
+
+		// Set Client to Busy
+		client.busy = true
 		Pipe(client.connection, pipeConnection)
 
+		// Close Pipe
+		pipeClient.requests <- "pipe close"
+		client.busy = false
+
+		fmt.Println("Pipe between", pipeClient.id, "(", pipeConnection.RemoteAddr(), ") and", client.id, "(", client.connection.RemoteAddr(), ") closed")
+		return OK
+
+	// Close Connection
+	case message == "CLOSE":
+		fmt.Println("Closing Connection:", client.id, "(", client.connection.RemoteAddr(), ")")
+		return CLOSE
+
+	// Display Message
 	default:
 		fmt.Println("Message:", message)
+		return OK
 	}
 }
