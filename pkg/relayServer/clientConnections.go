@@ -2,6 +2,7 @@ package relayServer
 
 import (
 	"fmt"
+	"github.com/wvanlit/go-relay/pkg/relay"
 	"io"
 	"log"
 	"net"
@@ -95,12 +96,14 @@ func (server relayServer) HandleConnection(conn net.Conn) {
 	} else {
 		MessageClient(conn, []byte("OK"))
 		client.connection = conn
+
+		// Defer shutdown procedure
 		defer func() {
 			fmt.Println("Closing", client.id, "and deleting it from current clients")
 			_ = conn.Close()
 			delete(server.clients, client.id)
-			fmt.Println(server.clients)
 		}()
+
 	}
 
 	// Create Channels
@@ -109,6 +112,9 @@ func (server relayServer) HandleConnection(conn net.Conn) {
 
 	// Retrieve Data
 	go retrieveData(client, connectionData)
+	defer func() {
+		client.requests <- relay.CLOSE_CONNECTION
+	}()
 
 	// Handle Data
 	go func() {
@@ -116,7 +122,6 @@ func (server relayServer) HandleConnection(conn net.Conn) {
 			select {
 			case data := <-connectionData:
 				response := server.HandleMessage(client, data)
-				fmt.Println(response)
 				responses <- response
 				if response == CLOSE {
 					break
@@ -132,7 +137,6 @@ func (server relayServer) HandleConnection(conn net.Conn) {
 		case response := <-responses:
 			switch response {
 			case CLOSE:
-				fmt.Println("CLOSING CONNECTION")
 				open = false
 				break
 			}
@@ -151,7 +155,6 @@ func retrieveData(client Client, output chan string) {
 		select {
 		case request := <-client.requests:
 			fmt.Println("Gotten Request:", request)
-
 			// Handle different requests
 			switch request {
 			case "pipe":
@@ -159,7 +162,12 @@ func retrieveData(client Client, output chan string) {
 				client.busy = true
 			case "pipe close":
 				client.busy = false
+			case relay.CLOSE_CONNECTION:
+				return
+			default:
+				fmt.Println("Unknown Request:",request)
 			}
+
 
 
 		default:
@@ -172,7 +180,7 @@ func retrieveData(client Client, output chan string) {
 				if strings.Contains(readError.Error(), "timeout") {
 					continue
 				} else if readError != io.EOF {
-					log.Println(readError.Error())
+					log.Println("Retrieve:",readError.Error())
 					return
 				}
 			}
@@ -190,7 +198,7 @@ func retrieveData(client Client, output chan string) {
 func (server relayServer) HandleMessage(client Client, message string) connectionResponse {
 	switch {
 	// Pipe Request
-	case strings.Contains(message, "PIPE:"):
+	case strings.Contains(message, relay.START_PIPE):
 		// Find Client
 		id := strings.Split(message, ":")[1]
 		pipeClient, err := server.FindClient(id)
@@ -219,7 +227,7 @@ func (server relayServer) HandleMessage(client Client, message string) connectio
 		return OK
 
 	// Close Connection
-	case message == "CLOSE":
+	case message == relay.CLOSE_CONNECTION:
 		fmt.Println("Closing Connection:", client.id, "(", client.connection.RemoteAddr(), ")")
 		return CLOSE
 

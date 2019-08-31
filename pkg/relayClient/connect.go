@@ -2,12 +2,13 @@ package relayClient
 
 import (
 	"fmt"
+	"github.com/wvanlit/go-relay/pkg/relay"
 	"log"
 	"net"
 	"strings"
 )
 
-func (client RelayClient) Start() net.Conn {
+func (client *RelayClient) Start() net.Conn {
 	// Setup Connection to Address
 	conn, err := net.Dial(client.network, client.address+":"+client.port)
 	if err != nil {
@@ -16,7 +17,7 @@ func (client RelayClient) Start() net.Conn {
 	return conn
 }
 
-func (client RelayClient) Stop() {
+func (client *RelayClient) Stop() {
 	// Setup Connection to Address
 	err := client.Connection.Close()
 	if err != nil {
@@ -24,14 +25,21 @@ func (client RelayClient) Stop() {
 	}
 }
 
-func (client RelayClient) Send(message []byte) {
+func (client *RelayClient) Send(message []byte) {
 	_, err := client.Connection.Write(message)
 	if err != nil {
 		log.Println(err)
 	}
 }
 
-func (client RelayClient) Read(message []byte) int {
+func (client *RelayClient) SendString(message string){
+	_, err := client.Connection.Write([]byte(message))
+	if err != nil {
+		log.Println(err)
+	}
+}
+
+func (client *RelayClient) Read(message []byte) int {
 	n, err := client.Connection.Read(message)
 	// Check if there is an error that is not a timeout
 	if err != nil && !strings.Contains(err.Error(), "timeout") {
@@ -40,7 +48,7 @@ func (client RelayClient) Read(message []byte) int {
 	return n
 }
 
-func (client RelayClient) Identify() bool {
+func (client *RelayClient) Identify() bool {
 	client.Send([]byte(fmt.Sprint(client.hostname, "|", client.messageSize)))
 	data := make([]byte, 100)
 	client.Read(data)
@@ -51,4 +59,8 @@ func (client RelayClient) Identify() bool {
 	}
 
 	return true
+}
+
+func (client *RelayClient) StartPipe(target string){
+	client.SendString(relay.START_PIPE+":"+target)
 }

@@ -2,6 +2,7 @@ package relayServer
 
 import (
 	"fmt"
+	"github.com/wvanlit/go-relay/pkg/relay"
 	"io"
 	"log"
 	"net"
@@ -35,7 +36,7 @@ func readAndDumpIntoChannel(conn net.Conn, channel chan []byte, isOn *bool) {
 				if *isOn{
 					log.Printf(err.Error())
 				}
-				
+
 			}else{
 				log.Printf(err.Error())
 				log.Printf(reflect.TypeOf(err).String())
@@ -75,7 +76,7 @@ func Pipe(connection1 net.Conn, connection2 net.Conn) {
 		case messageTo1 := <-channel2:
 			fmt.Println("1:", string(messageTo1))
 			if messageTo1 != nil {
-				if string(messageTo1) == "CLOSE" {
+				if string(messageTo1) == relay.STOP_PIPE {
 					return
 				}
 				_, err := connection1.Write(messageTo1)
@@ -87,8 +88,7 @@ func Pipe(connection1 net.Conn, connection2 net.Conn) {
 		case messageTo2 := <-channel1:
 			fmt.Println("2:", string(messageTo2))
 			if messageTo2 != nil {
-
-				if string(messageTo2) == "CLOSE" {
+				if string(messageTo2) == relay.STOP_PIPE {
 					return
 				}
 				_, err := connection2.Write(messageTo2)
