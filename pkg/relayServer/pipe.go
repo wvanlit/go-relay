@@ -5,66 +5,95 @@ import (
 	"io"
 	"log"
 	"net"
+	"reflect"
+	"time"
 )
 
-func createChannelForConnection(conn net.Conn) chan []byte {
+func createChannelForConnection(conn net.Conn, isOn *bool) chan []byte {
 	channel := make(chan []byte)
 	// Read Connection and Dump in channel
-	go readAndDumpIntoChannel(conn, channel)
+	go readAndDumpIntoChannel(conn, channel, isOn)
 	return channel
 }
 
-func readAndDumpIntoChannel(conn net.Conn, channel chan []byte) {
+func readAndDumpIntoChannel(conn net.Conn, channel chan []byte, isOn *bool) {
 	data := make([]byte, 1024)
-	for {
+	for *isOn {
+		_ = conn.SetReadDeadline(time.Now().Add(time.Second))
 		n, err := conn.Read(data)
-		fmt.Println(n)
 		// Handle Errors
-		if err != nil && err != io.EOF {
-			log.Printf(err.Error())
-			return
+		if err != nil {
+			if err == io.EOF {
+				continue
+			}else if reflect.TypeOf(err) == reflect.TypeOf(&net.OpError{}){
+				// is Timeout
+				if e,ok := err.(net.Error); ok && e.Timeout() {
+					continue
+				}
+
+				// Is not a reset of the connection or timeout -> This is an actual error
+				if *isOn{
+					log.Printf(err.Error())
+				}
+				
+			}else{
+				log.Printf(err.Error())
+				log.Printf(reflect.TypeOf(err).String())
+				return
+			}
 		}
 
 		// Dump message
 		if n > 0 {
 			message := make([]byte, n)
 			copy(message, data)
-			fmt.Println(message)
+			fmt.Println(string(message))
 			channel <- message
 		}
 
 	}
+
+	fmt.Println("Closing Dump")
 }
 
 // Create a Pipe between 2 Connections, sending data from one directly to the other.
 func Pipe(connection1 net.Conn, connection2 net.Conn) {
-	channel1 := createChannelForConnection(connection1)
-	channel2 := createChannelForConnection(connection2)
+	isOn := true
+
+	channel1 := createChannelForConnection(connection1, &isOn)
+	channel2 := createChannelForConnection(connection2, &isOn)
+
+	defer func() {
+		fmt.Println("Stopping pipe on", connection1.RemoteAddr(), "and", connection2.RemoteAddr())
+		isOn = false
+		time.Sleep(time.Second)
+	}()
+
 
 	for {
 		select {
 		case messageTo1 := <-channel2:
-			fmt.Println("1:", messageTo1)
+			fmt.Println("1:", string(messageTo1))
 			if messageTo1 != nil {
+				if string(messageTo1) == "CLOSE" {
+					return
+				}
 				_, err := connection1.Write(messageTo1)
 				if err != nil {
 					log.Println("PIPE:", err.Error())
 				}
-				if string(messageTo1) == "STOP" {
-					fmt.Println("Stopping pipe on", connection1.RemoteAddr(), "and", connection2.RemoteAddr())
-					return
-				}
+
 			}
 		case messageTo2 := <-channel1:
-			fmt.Println("2:", messageTo2)
+			fmt.Println("2:", string(messageTo2))
 			if messageTo2 != nil {
+
+				if string(messageTo2) == "CLOSE" {
+					return
+				}
 				_, err := connection2.Write(messageTo2)
 				if err != nil {
 					log.Println("PIPE:", err.Error())
-				}
-				if string(messageTo2) == "STOP" {
-					fmt.Println("Stopping pipe on", connection1.RemoteAddr(), "and", connection2.RemoteAddr())
-					return
 				}
 			}
 		}

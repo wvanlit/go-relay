@@ -40,14 +40,14 @@ func main() {
 	// Send Through Pipe
 	for i := 0; i < 3; i++{
 		fmt.Println("Rotation",i)
-		time.Sleep(time.Millisecond*500)
+		time.Sleep(time.Millisecond*1500)
 		client.Send([]byte("Hello World! - from "+name))
-		time.Sleep(time.Millisecond*500)
-		data := make([]byte, 100)
-		n := client.Read(data)
-		if n >= 0{
-			fmt.Println("Received:",string(data),"on",name,client.Connection.LocalAddr()	)
-		}
+		time.Sleep(time.Millisecond*1500)
+		//data := make([]byte, 100)
+		//n := client.Read(data)
+		//if n >= 0{
+		//	fmt.Println("Received:",string(data),"on",name,client.Connection.LocalAddr()	)
+		//}
 	}
 	// Stop Pipe
 	client.Send([]byte("CLOSE"))
