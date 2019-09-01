@@ -20,7 +20,7 @@ func main() {
 	client := relayClient.CreateTCPClient(name, "localhost", "2019", 25)
 
 	// Establish Connection to Server
-	client.Connection = client.Start()
+	client.Start()
 
 	defer client.Stop()
 
@@ -58,6 +58,6 @@ func main() {
 	time.Sleep(time.Second*5)
 
 	// Stop Connection
-	client.SendString(relay.CLOSE_CONNECTION)
+	client.Stop()
 	time.Sleep(time.Second*5)
 }

@@ -33,6 +33,7 @@ const (
 
 func (server relayServer) createClient(id string, messageSize int, address string, port string) (Client, error) {
 	// Check for existing clients with the same ID
+	server.clientLock.Lock()
 	for key, _ := range server.clients {
 		if key == id {
 			return Client{}, fmt.Errorf("name already used")
@@ -50,7 +51,9 @@ func (server relayServer) createClient(id string, messageSize int, address strin
 	}
 
 	// Add client to list of clients
+
 	server.clients[id] = client
+	server.clientLock.Unlock()
 	return client, nil
 }
 
@@ -65,7 +68,9 @@ func (server relayServer) FindClient(id string) (Client, error) {
 }
 
 func (server relayServer) HandleConnection(conn net.Conn) {
-	defer conn.Close()
+	defer func() {
+		_ = conn.Close()
+	}()
 
 	// Identify Connection
 	fmt.Println("New Address Connected:", conn.RemoteAddr().String())
@@ -76,6 +81,9 @@ func (server relayServer) HandleConnection(conn net.Conn) {
 
 	// Parse Data
 	identity := strings.Split(string(data), "|")
+	if len(identity) <= 1{
+		return
+	}
 	messageSize, parseError := strconv.ParseInt(strings.TrimRight(identity[1], "\x00"), 10, 64)
 	if parseError != nil {
 		log.Println(parseError)
@@ -101,7 +109,9 @@ func (server relayServer) HandleConnection(conn net.Conn) {
 		// Defer shutdown procedure
 		defer func() {
 			_ = conn.Close()
+			server.clientLock.Lock()
 			delete(server.clients, client.id)
+			server.clientLock.Unlock()
 		}()
 
 	}

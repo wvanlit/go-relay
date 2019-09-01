@@ -8,17 +8,18 @@ import (
 	"strings"
 )
 
-func (client *RelayClient) Start() net.Conn {
+func (client *RelayClient) Start() {
 	// Setup Connection to Address
 	conn, err := net.Dial(client.network, client.address+":"+client.port)
 	if err != nil {
 		log.Fatal(err)
 	}
-	return conn
+	client.Connection = conn
 }
 
 func (client *RelayClient) Stop() {
 	// Setup Connection to Address
+	client.SendString(relay.CLOSE_CONNECTION)
 	err := client.Connection.Close()
 	if err != nil {
 		log.Fatal(err)
