@@ -65,3 +65,7 @@ func (client *RelayClient) Identify() bool {
 func (client *RelayClient) StartPipe(target string){
 	client.SendString(relay.START_PIPE+":"+target)
 }
+
+func (client *RelayClient) StopPipe(){
+	client.SendString(relay.STOP_PIPE)
+}
