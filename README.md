@@ -13,5 +13,6 @@ To stop a connection use `client.Stop()` or manually send `relay.CLOSE_CONNECTIO
 ### Commands
 When a client is connected to the server, it can send commands to perform actions.
 
-To start a pipe between to connections either use `client.StartPipe(target)` or directly send `relay.START_PIPE+':'+target` to the server.
-To stop the pipe use `client.StopPipe()` or directly send `relay.STOP_PIPE` to the server.
+To start a pipe with another connection either use `client.StartPipe(target)` or directly send `relay.START_PIPE+':'+target` to the server.
+
+To stop a pipe use `client.StopPipe()` or directly send `relay.STOP_PIPE` to the server.
