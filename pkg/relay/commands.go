@@ -8,6 +8,6 @@ const (
 	CLOSE_CONNECTION = "CLOSE"
 
 	// Creating and Closing pipes
-	START_PIPE = "PIPE"
+	START_PIPE = "START PIPE"
 	STOP_PIPE = "EXIT PIPE"
 )

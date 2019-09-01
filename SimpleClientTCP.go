@@ -52,12 +52,12 @@ func main() {
 		//	fmt.Println("Received:",string(data),"on",name,client.Connection.LocalAddr()	)
 		//}
 	}
-
+	time.Sleep(time.Second*5)
 	// Stop Pipe
 	client.SendString(relay.STOP_PIPE)
-	time.Sleep(time.Second)
+	time.Sleep(time.Second*5)
 
 	// Stop Connection
 	client.SendString(relay.CLOSE_CONNECTION)
-	time.Sleep(time.Second)
+	time.Sleep(time.Second*5)
 }

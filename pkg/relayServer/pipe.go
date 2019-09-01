@@ -19,6 +19,9 @@ func createChannelForConnection(conn net.Conn, isOn *bool) chan []byte {
 
 func readAndDumpIntoChannel(conn net.Conn, channel chan []byte, isOn *bool) {
 	data := make([]byte, 1024)
+
+	defer fmt.Println("Closing Dump")
+
 	for *isOn {
 		_ = conn.SetReadDeadline(time.Now().Add(time.Second))
 		n, err := conn.Read(data)
@@ -26,18 +29,18 @@ func readAndDumpIntoChannel(conn net.Conn, channel chan []byte, isOn *bool) {
 		if err != nil {
 			if err == io.EOF {
 				continue
-			}else if reflect.TypeOf(err) == reflect.TypeOf(&net.OpError{}){
+			} else if reflect.TypeOf(err) == reflect.TypeOf(&net.OpError{}) {
 				// is Timeout
-				if e,ok := err.(net.Error); ok && e.Timeout() {
+				if e, ok := err.(net.Error); ok && e.Timeout() {
 					continue
 				}
 
 				// Is not a reset of the connection or timeout -> This is an actual error
-				if *isOn{
+				if *isOn {
 					log.Printf(err.Error())
 				}
 
-			}else{
+			} else {
 				log.Printf(err.Error())
 				log.Printf(reflect.TypeOf(err).String())
 				return
@@ -48,13 +51,17 @@ func readAndDumpIntoChannel(conn net.Conn, channel chan []byte, isOn *bool) {
 		if n > 0 {
 			message := make([]byte, n)
 			copy(message, data)
-			fmt.Println(string(message))
-			channel <- message
+			select {
+			case channel <- message:
+				continue
+			case <-time.After(time.Second):
+				continue
+			}
+
 		}
 
 	}
 
-	fmt.Println("Closing Dump")
 }
 
 // Create a Pipe between 2 Connections, sending data from one directly to the other.
@@ -69,7 +76,6 @@ func Pipe(connection1 net.Conn, connection2 net.Conn) {
 		isOn = false
 		time.Sleep(time.Second)
 	}()
-
 
 	for {
 		select {

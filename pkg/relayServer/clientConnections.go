@@ -8,6 +8,7 @@ import (
 	"net"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type Client struct {
@@ -99,7 +100,6 @@ func (server relayServer) HandleConnection(conn net.Conn) {
 
 		// Defer shutdown procedure
 		defer func() {
-			fmt.Println("Closing", client.id, "and deleting it from current clients")
 			_ = conn.Close()
 			delete(server.clients, client.id)
 		}()
@@ -148,10 +148,6 @@ func retrieveData(client Client, output chan string) {
 	conn := client.connection
 	for {
 		// Start retrieving data
-		if client.busy {
-			continue
-		}
-
 		select {
 		case request := <-client.requests:
 			fmt.Println("Gotten Request:", request)
@@ -171,13 +167,19 @@ func retrieveData(client Client, output chan string) {
 
 
 		default:
+			if client.busy {
+				continue
+			}
+
 			data := make([]byte, client.messageSize)
 			// Read data from connection
+			_ = conn.SetReadDeadline(time.Now().Add(time.Second))
 			n, readError := conn.Read(data)
 
 			// Handle potential errors
 			if readError != nil {
-				if strings.Contains(readError.Error(), "timeout") {
+				// Ignore timeout
+				if e, ok := readError.(net.Error); ok && e.Timeout() {
 					continue
 				} else if readError != io.EOF {
 					log.Println("Retrieve:",readError.Error())
@@ -220,8 +222,9 @@ func (server relayServer) HandleMessage(client Client, message string) connectio
 		Pipe(client.connection, pipeConnection)
 
 		// Close Pipe
-		pipeClient.requests <- "pipe close"
 		client.busy = false
+		pipeClient.requests <- "pipe close"
+
 
 		fmt.Println("Pipe between", pipeClient.id, "(", pipeConnection.RemoteAddr(), ") and", client.id, "(", client.connection.RemoteAddr(), ") closed")
 		return OK
