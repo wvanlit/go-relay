@@ -10,4 +10,7 @@ const (
 	// Creating and Closing pipes
 	START_PIPE = "START PIPE"
 	STOP_PIPE = "EXIT PIPE"
+
+	// Testing Commands
+	CHECK_CONNECTION = "ARE YOU STILL ALIVE"
 )
