@@ -1,5 +1,5 @@
 # go-relay
-A Relay Server and Client made in Go that can handle up to 750+ concurrent connections.
+A Relay Server and Client made in Go that can handle up to 750+ concurrent connections. It's recommended that you keep the connections below 200, especially if you're using a lot of pipes as the overhead slows down the server significantly.
 
 ### Protocol
 To start a connection the following protocol should be followed:

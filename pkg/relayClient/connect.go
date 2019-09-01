@@ -6,6 +6,7 @@ import (
 	"log"
 	"net"
 	"strings"
+	"time"
 )
 
 func (client *RelayClient) Start() {
@@ -44,6 +45,19 @@ func (client *RelayClient) Read(message []byte) int {
 	n, err := client.Connection.Read(message)
 	// Check if there is an error that is not a timeout
 	if err != nil && !strings.Contains(err.Error(), "timeout") {
+		log.Println(err.Error())
+	}
+	return n
+}
+
+func (client *RelayClient) ReadForDuration(message []byte, duration time.Duration) int {
+	_ = client.Connection.SetReadDeadline(time.Now().Add(duration))
+	n, err := client.Connection.Read(message)
+	// Check if there is an error that is not a timeout
+	if err != nil {
+		if e, ok := err.(net.Error); ok && e.Timeout(){
+			return 0
+		}
 		log.Println(err.Error())
 	}
 	return n

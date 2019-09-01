@@ -58,11 +58,14 @@ func (server relayServer) createClient(id string, messageSize int, address strin
 }
 
 func (server relayServer) FindClient(id string) (Client, error) {
+	server.clientLock.Lock()
+	defer server.clientLock.Unlock()
 	for key, client := range server.clients {
 		if key == id {
 			return client, nil
 		}
 	}
+
 
 	return Client{}, fmt.Errorf(fmt.Sprintf("ID: %q not found", id))
 }
