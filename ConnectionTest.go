@@ -26,7 +26,7 @@ func main() {
 	}
 
 	// Create Pipes
-	for i := 0; i < 175; i++ {
+	for i := 0; i < 50; i++ {
 		go createPipe(host, port, &wg)
 		wg.Add(1)
 	}

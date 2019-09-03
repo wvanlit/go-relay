@@ -46,11 +46,11 @@ func main() {
 		client.SendString("Hello World! - from " + name)
 		time.Sleep(time.Millisecond * 1000)
 
-		//data := make([]byte, 100)
-		//n := client.Read(data)
-		//if n >= 0{
-		//	fmt.Println("Received:",string(data),"on",name,client.Connection.LocalAddr()	)
-		//}
+		data := make([]byte, 100)
+		n := client.Read(data)
+		if n >= 0{
+			fmt.Println("Received:",string(data),"on",name,client.Connection.LocalAddr()	)
+		}
 	}
 	time.Sleep(time.Second)
 	// Stop Pipe

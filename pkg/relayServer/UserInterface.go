@@ -65,7 +65,7 @@ func (server *relayServer) removeBrokenConnections() {
 }
 
 func (server *relayServer) isBroken(client *Client) bool {
-	if client.busy{
+	if client.busy {
 		return false
 	}
 	if client.connection != nil {
@@ -90,5 +90,33 @@ func (server *relayServer) removeConnection(id string) {
 	case <-time.After(time.Second):
 		c.close = true
 		fmt.Println("Couldn't close", id)
+	}
+}
+
+func (server *relayServer) CleanServer(interval time.Duration) {
+	for {
+		select {
+		case <-time.After(interval):
+			// Put commands to clean server here
+			server.removeBrokenConnections()
+		}
+	}
+}
+
+func (server *relayServer) PurgeServer(interval time.Duration) {
+	for {
+		select {
+		case <-time.After(interval):
+			// Put commands to clean server here
+			server.purgeConnections()
+		}
+	}
+}
+
+func (server *relayServer) purgeConnections() {
+	// Force Delete All Connections
+	for _, client := range server.clients {
+		server.removeConnection(client.id)
+		fmt.Println("PURGE")
 	}
 }
