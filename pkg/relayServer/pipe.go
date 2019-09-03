@@ -20,8 +20,6 @@ func createChannelForConnection(conn net.Conn, isOn *bool) chan []byte {
 func readAndDumpIntoChannel(conn net.Conn, channel chan []byte, isOn *bool) {
 	data := make([]byte, 1024)
 
-	defer fmt.Println("Closing Dump")
-
 	for *isOn {
 		_ = conn.SetReadDeadline(time.Now().Add(time.Second))
 		n, err := conn.Read(data)
@@ -65,7 +63,7 @@ func readAndDumpIntoChannel(conn net.Conn, channel chan []byte, isOn *bool) {
 }
 
 // Create a Pipe between 2 Connections, sending data from one directly to the other.
-func Pipe(connection1 net.Conn, connection2 net.Conn) {
+func Pipe(connection1 net.Conn, connection2 net.Conn, client1 *Client, client2 *Client) {
 	isOn := true
 
 	channel1 := createChannelForConnection(connection1, &isOn)
@@ -77,10 +75,10 @@ func Pipe(connection1 net.Conn, connection2 net.Conn) {
 		time.Sleep(time.Second)
 	}()
 
-	for {
+	for client1.close || client2.close {
 		select {
 		case messageTo1 := <-channel2:
-			fmt.Println("1:", string(messageTo1))
+			//fmt.Println("1:", string(messageTo1))
 			if messageTo1 != nil {
 				if string(messageTo1) == relay.STOP_PIPE {
 					return
@@ -92,7 +90,7 @@ func Pipe(connection1 net.Conn, connection2 net.Conn) {
 
 			}
 		case messageTo2 := <-channel1:
-			fmt.Println("2:", string(messageTo2))
+			//fmt.Println("2:", string(messageTo2))
 			if messageTo2 != nil {
 				if string(messageTo2) == relay.STOP_PIPE {
 					return
@@ -102,6 +100,8 @@ func Pipe(connection1 net.Conn, connection2 net.Conn) {
 					log.Println("PIPE:", err.Error())
 				}
 			}
+		case <-time.After(time.Second * 5):
+			continue
 		}
 	}
 }

@@ -25,7 +25,7 @@ func ReadClientMessage(conn net.Conn, data *[]byte) bool{
 	return true
 }
 
-func (server relayServer) Run() {
+func (server *relayServer) Run() {
 	listen, err := net.Listen(server.network, server.port)
 	if err != nil {
 		log.Fatal(err)

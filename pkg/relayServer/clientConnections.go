@@ -11,17 +11,6 @@ import (
 	"time"
 )
 
-type Client struct {
-	id          string
-	messageSize int
-	address     string
-	port        string
-	requests    chan string
-	results     chan net.Conn
-	connection  net.Conn
-	busy        bool
-}
-
 // Connection Response codes
 type connectionResponse int
 
@@ -31,12 +20,12 @@ const (
 	ERROR connectionResponse = 2
 )
 
-func (server relayServer) createClient(id string, messageSize int, address string, port string) (Client, error) {
+func (server *relayServer) createClient(id string, messageSize int, address string, port string) (*Client, error) {
 	// Check for existing clients with the same ID
 	server.clientLock.Lock()
-	for key, _ := range server.clients {
-		if key == id {
-			return Client{}, fmt.Errorf("name already used")
+	for _, client := range server.clients {
+		if client.id == id {
+			return &Client{}, fmt.Errorf("name already used")
 		}
 	}
 	// Create new Client
@@ -48,29 +37,28 @@ func (server relayServer) createClient(id string, messageSize int, address strin
 		requests:    make(chan string),
 		results:     make(chan net.Conn),
 		busy:        false,
+		close:       false,
 	}
 
 	// Add client to list of clients
-
-	server.clients[id] = client
+	server.clients = append(server.clients, &client)
 	server.clientLock.Unlock()
-	return client, nil
+	return &client, nil
 }
 
-func (server relayServer) FindClient(id string) (Client, error) {
+func (server *relayServer) FindClient(id string) (*Client, error) {
 	server.clientLock.Lock()
 	defer server.clientLock.Unlock()
-	for key, client := range server.clients {
-		if key == id {
+	for _, client := range server.clients {
+		if client.id == id {
 			return client, nil
 		}
 	}
 
-
-	return Client{}, fmt.Errorf(fmt.Sprintf("ID: %q not found", id))
+	return &Client{}, fmt.Errorf(fmt.Sprintf("ID: %q not found", id))
 }
 
-func (server relayServer) HandleConnection(conn net.Conn) {
+func (server *relayServer) HandleConnection(conn net.Conn) {
 	defer func() {
 		_ = conn.Close()
 	}()
@@ -84,7 +72,7 @@ func (server relayServer) HandleConnection(conn net.Conn) {
 
 	// Parse Data
 	identity := strings.Split(string(data), "|")
-	if len(identity) <= 1{
+	if len(identity) <= 1 {
 		return
 	}
 	messageSize, parseError := strconv.ParseInt(strings.TrimRight(identity[1], "\x00"), 10, 64)
@@ -113,7 +101,10 @@ func (server relayServer) HandleConnection(conn net.Conn) {
 		defer func() {
 			_ = conn.Close()
 			server.clientLock.Lock()
-			delete(server.clients, client.id)
+			err := server.removeClient(client.id)
+			if err != nil {
+				fmt.Println(err.Error())
+			}
 			server.clientLock.Unlock()
 		}()
 
@@ -126,44 +117,59 @@ func (server relayServer) HandleConnection(conn net.Conn) {
 	// Retrieve Data
 	go retrieveData(client, connectionData)
 	defer func() {
-		client.requests <- relay.CLOSE_CONNECTION
+		select {
+		case client.requests <- relay.CLOSE_CONNECTION:
+			return
+		case <-time.After(time.Second * 5):
+			return
+		}
 	}()
 
 	// Handle Data
 	go func() {
-		for {
+		for !client.close {
 			select {
 			case data := <-connectionData:
 				response := server.HandleMessage(client, data)
 				responses <- response
 				if response == CLOSE {
-					break
+					client.close = true
+				}
+			case <-time.After(time.Second):
+				if client.close {
+					select {
+					case responses <- CLOSE:
+						continue
+					case <-time.After(time.Second):
+						continue
+					}
 				}
 			}
 		}
 	}()
 
 	// Handle Responses
-	open := true
-	for open{
+	for !client.close {
 		select {
 		case response := <-responses:
 			switch response {
 			case CLOSE:
-				open = false
+				client.close = true
 				break
 			}
+		case <-time.After(time.Second):
+			continue
 		}
+
 	}
 }
 
-func retrieveData(client Client, output chan string) {
+func retrieveData(client *Client, output chan string) {
 	conn := client.connection
 	for {
 		// Start retrieving data
 		select {
 		case request := <-client.requests:
-			fmt.Println("Gotten Request:", request)
 			// Handle different requests
 			switch request {
 			case "pipe":
@@ -172,9 +178,10 @@ func retrieveData(client Client, output chan string) {
 			case "pipe close":
 				client.busy = false
 			case relay.CLOSE_CONNECTION:
+				client.close = true
 				return
 			default:
-				fmt.Println("Unknown Request:",request)
+				fmt.Println("Unknown Request:", request)
 			}
 
 
@@ -195,14 +202,19 @@ func retrieveData(client Client, output chan string) {
 				if e, ok := readError.(net.Error); ok && e.Timeout() {
 					continue
 				} else if readError != io.EOF {
-					log.Println("Retrieve:",readError.Error())
+					log.Println("Retrieve:", readError.Error())
 					return
 				}
 			}
 
 			// Handle the message if data is received
 			if n > 0 {
-				output <- string(data[:n])
+				select {
+				case output <- string(data[:n]):
+					continue
+				case <-time.After(time.Second):
+					continue
+				}
 			}
 
 		}
@@ -210,7 +222,7 @@ func retrieveData(client Client, output chan string) {
 	}
 }
 
-func (server relayServer) HandleMessage(client Client, message string) connectionResponse {
+func (server *relayServer) HandleMessage(client *Client, message string) connectionResponse {
 	switch {
 	// Pipe Request
 	case strings.Contains(message, relay.START_PIPE):
@@ -232,12 +244,11 @@ func (server relayServer) HandleMessage(client Client, message string) connectio
 
 		// Set Client to Busy
 		client.busy = true
-		Pipe(client.connection, pipeConnection)
+		Pipe(client.connection, pipeConnection, client, pipeClient)
 
 		// Close Pipe
 		client.busy = false
 		pipeClient.requests <- "pipe close"
-
 
 		fmt.Println("Pipe between", pipeClient.id, "(", pipeConnection.RemoteAddr(), ") and", client.id, "(", client.connection.RemoteAddr(), ") closed")
 		return OK

@@ -20,13 +20,13 @@ func main() {
 	var wg sync.WaitGroup
 
 	// Create Message Sending Connections
-	for i := 0; i < 100; i++ {
+	for i := 0; i < 0; i++ {
 		go createTCPConnection(host, port, &wg)
 		wg.Add(1)
 	}
 
 	// Create Pipes
-	for i := 0; i < 100; i++ {
+	for i := 0; i < 175; i++ {
 		go createPipe(host, port, &wg)
 		wg.Add(1)
 	}
@@ -90,7 +90,7 @@ func createPipe(hostname string, port string, group *sync.WaitGroup) {
 			c1.SendString("PipeTest - 1")
 			data := make([]byte, 100)
 			c1.ReadForDuration(data, time.Second)
-			time.Sleep(time.Second)
+			time.Sleep(time.Millisecond*250)
 		}
 	}()
 
@@ -98,7 +98,7 @@ func createPipe(hostname string, port string, group *sync.WaitGroup) {
 		c2.SendString("PipeTest - 2")
 		data := make([]byte, 100)
 		c2.ReadForDuration(data, time.Second)
-		time.Sleep(time.Second)
+		time.Sleep(time.Millisecond*250)
 	}
 
 	c1.StopPipe()

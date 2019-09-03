@@ -29,13 +29,13 @@ func (server *relayServer) handleCommand(command string) {
 		fmt.Println(help())
 
 	case "clear":
-		print("\033[H\033[2J") // ANSI Escape codes for clear screen
+		go print("\033[H\033[2J") // ANSI Escape codes for clear screen
 
 	case "list":
-		server.listConnections()
+		go server.listConnections()
 
 	case "remove broken":
-		server.removeBrokenConnections()
+		go server.removeBrokenConnections()
 
 	default:
 		fmt.Printf("Unknown Command '%s'\n", command)
@@ -49,25 +49,46 @@ func help() string {
 }
 
 func (server *relayServer) listConnections() {
-	for id, client := range server.clients {
-		fmt.Println(id, "- busy:", client.busy, "- address:", client.address)
+	for _, client := range server.clients {
+		fmt.Println(client.id, "- busy:", client.busy, "- close:", client.close, "- address:", client.address)
 	}
+	fmt.Println(len(server.clients), "total clients.")
 }
 
 func (server *relayServer) removeBrokenConnections() {
-	for id, client := range server.clients {
-		fmt.Println(id)
-		if client.connection != nil {
-			_ = client.connection.SetWriteDeadline(time.Now().Add(time.Second))
-			_, err := client.connection.Write([]byte(relay.CHECK_CONNECTION))
-			if err == nil {
-				// Short circuit to prevent closing
-				return
-			}
+	for _, client := range server.clients {
+		if server.isBroken(client) {
+			go server.removeConnection(client.id)
 		}
+		continue
+	}
+}
 
-		client.requests <- relay.CLOSE_CONNECTION
-		fmt.Println("Closed", id)
+func (server *relayServer) isBroken(client *Client) bool {
+	if client.busy{
+		return false
+	}
+	if client.connection != nil {
+		_ = client.connection.SetWriteDeadline(time.Now().Add(time.Second))
+		_, err := client.connection.Write([]byte(relay.CHECK_CONNECTION))
+		if err == nil {
+			return false
+		}
+	}
 
+	return true
+}
+
+func (server *relayServer) removeConnection(id string) {
+	c, err := server.FindClient(id)
+	if err != nil {
+		return
+	}
+	select {
+	case c.requests <- relay.CLOSE_CONNECTION:
+		fmt.Println("Removing", id)
+	case <-time.After(time.Second):
+		c.close = true
+		fmt.Println("Couldn't close", id)
 	}
 }
