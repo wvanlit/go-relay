@@ -46,18 +46,17 @@ func main() {
 		client.SendString("Hello World! - from " + name)
 		time.Sleep(time.Millisecond * 1000)
 
-		data := make([]byte, 100)
-		n := client.Read(data)
-		if n >= 0{
-			fmt.Println("Received:",string(data),"on",name,client.Connection.LocalAddr()	)
-		}
+		//data := make([]byte, 100)
+		//n := client.Read(data)
+		//if n >= 0{
+		//	fmt.Println("Received:",string(data),"on",name,client.Connection.LocalAddr()	)
+		//}
 	}
-	time.Sleep(time.Second*5)
+	time.Sleep(time.Second)
 	// Stop Pipe
 	client.SendString(relay.STOP_PIPE)
-	time.Sleep(time.Second*5)
-
+	time.Sleep(time.Second*10)
 	// Stop Connection
 	client.Stop()
-	time.Sleep(time.Second*5)
+	time.Sleep(time.Second)
 }
