@@ -4,20 +4,42 @@ import (
 	"bufio"
 	"fmt"
 	"net"
-	"strings"
-	"time"
+	"sync"
 )
 
 type RelayServer struct {
-	Port string
-	Open bool
+	Port               string
+	Open               bool
+	ConnectionMessages chan message
+	users              map[string]RelayConnection
+	lock               sync.Mutex
 }
 
 func CreateServer(port string) *RelayServer {
 	return &RelayServer{
-		Port: port,
-		Open: false,
+		Port:               port,
+		Open:               true,
+		ConnectionMessages: make(chan message, 5),
+		lock:               sync.Mutex{},
+		users: 				map[string]RelayConnection{},
 	}
+}
+
+func (r *RelayServer) SetUser(name string, conn RelayConnection){
+	r.lock.Lock()
+	r.users[name] = conn
+	r.lock.Unlock()
+}
+
+func (r *RelayServer) DeleteUser(name string){
+	r.lock.Lock()
+	delete(r.users,name)
+	r.lock.Unlock()
+}
+
+func (r *RelayServer) CheckForUser(name string) bool{
+	_, ok := r.users[name]
+	return ok
 }
 
 func (r *RelayServer) getListener() net.Listener {
@@ -40,24 +62,31 @@ func (r *RelayServer) getConnection(listener net.Listener) RelayConnection {
 		Open:       true,
 		reader:     bufio.NewReader(c),
 		writer:     bufio.NewWriter(c),
+		serverPipe: r.ConnectionMessages,
+	}
+}
+
+func (r *RelayServer) handleConnectionMessages() {
+	for {
+		select {
+		case command := <-r.ConnectionMessages:
+			command.ProcessMessage(r)
+		}
 	}
 }
 
 func (r *RelayServer) RunServer() {
+	go r.handleConnectionMessages()
 	listener := r.getListener()
-	conn := r.getConnection(listener)
 
-	for {
-		netData := conn.ReceiveMessage()
-		if strings.TrimSpace(string(netData)) == "STOP" {
-			fmt.Println("Exiting TCP server!")
-			return
+	// Accept Open Connections
+	go func() {
+		for r.Open {
+			conn := r.getConnection(listener)
+			go conn.HandleConnection()
 		}
+	}()
 
-		fmt.Print("--> ", netData)
-		t := time.Now()
-		myTime := t.Format(time.RFC3339) + "\n"
-
-		conn.SendMessage(myTime)
+	for r.Open {
 	}
 }

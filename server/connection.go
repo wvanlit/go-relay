@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"strings"
+	"time"
 )
 
 type RelayConnection struct {
@@ -12,6 +14,7 @@ type RelayConnection struct {
 	Open       bool
 	reader     *bufio.Reader
 	writer     *bufio.Writer
+	serverPipe chan message
 }
 
 func (c *RelayConnection) SendMessage(message string) {
@@ -24,4 +27,21 @@ func (c *RelayConnection) ReceiveMessage() string {
 		fmt.Printf("Error on Receive Message: %s\n", err)
 	}
 	return message
+}
+
+func (c *RelayConnection) HandleConnection() {
+	for {
+		netData := c.ReceiveMessage()
+		if strings.TrimSpace(string(netData)) == "STOP" {
+			c.serverPipe <- CreateCloseServerMessage()
+			break
+		}
+
+		fmt.Print("--> ", netData)
+		t := time.Now()
+		myTime := t.Format(time.RFC3339) + "\n"
+
+		c.SendMessage(myTime)
+	}
+
 }
