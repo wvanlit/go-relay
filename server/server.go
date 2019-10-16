@@ -11,7 +11,7 @@ type RelayServer struct {
 	Port               string
 	Open               bool
 	ConnectionMessages chan message
-	users              map[string]RelayConnection
+	users              map[string]*RelayConnection
 	lock               sync.Mutex
 }
 
@@ -21,11 +21,11 @@ func CreateServer(port string) *RelayServer {
 		Open:               true,
 		ConnectionMessages: make(chan message, 5),
 		lock:               sync.Mutex{},
-		users: 				map[string]RelayConnection{},
+		users: 				map[string]*RelayConnection{},
 	}
 }
 
-func (r *RelayServer) SetUser(name string, conn RelayConnection){
+func (r *RelayServer) SetUser(name string, conn *RelayConnection){
 	r.lock.Lock()
 	r.users[name] = conn
 	r.lock.Unlock()

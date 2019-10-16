@@ -40,10 +40,10 @@ func (csm CloseServerMessage) ProcessMessage(server *RelayServer) {
 type CreateUserMessage struct {
 	messageType MessageType
 	username    string
-	conn        RelayConnection
+	conn        *RelayConnection
 }
 
-func CreateCreateUserMessage(name string, conn RelayConnection) CreateUserMessage {
+func CreateCreateUserMessage(name string, conn *RelayConnection) CreateUserMessage {
 	return CreateUserMessage{
 		messageType: CREATE_USER,
 		username:    name,

@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"strings"
+	"time"
 )
 
 type RelayClient struct {
@@ -15,6 +16,8 @@ type RelayClient struct {
 	Open       bool
 	reader     *bufio.Reader
 	writer     *bufio.Writer
+	output     chan string
+	input      chan string
 }
 
 func CreateRelayClient(address string, port string) *RelayClient {
@@ -27,6 +30,8 @@ func CreateRelayClient(address string, port string) *RelayClient {
 		Open:       true,
 		reader:     bufio.NewReader(conn),
 		writer:     bufio.NewWriter(conn),
+		output:     make(chan string, 0),
+		input:      make(chan string, 2),
 	}
 
 	if err != nil {
@@ -36,16 +41,43 @@ func CreateRelayClient(address string, port string) *RelayClient {
 	return relay
 }
 
+func (r *RelayClient) RunWorkers() {
+	go r.SendingWorker()
+	go r.ReceivingWorker()
+}
+
 func (r *RelayClient) SendMessage(message string) {
-	_, _ = fmt.Fprintf(r.Connection, message)
+	r.output <- message
+}
+
+func (r *RelayClient) SendingWorker() {
+	for r.Open {
+		message := <-r.output
+		_, err := fmt.Fprintln(r.Connection, message)
+		fmt.Print("Sending:", message)
+		if err != nil {
+			fmt.Println("Error on sending message:", err)
+		}
+	}
 }
 
 func (r *RelayClient) ReceiveMessage() string {
-	message, err := r.reader.ReadString('\n')
-	if err != nil && err != io.EOF {
-		fmt.Printf("Error on Receive Message: %s\n", err)
+	return <-r.input
+}
+
+func (r *RelayClient) ReceivingWorker() {
+	for r.Open {
+		select {
+
+		default:
+			message, err := r.reader.ReadString('\n')
+			if err != nil && err != io.EOF {
+				fmt.Printf("Error on Receive Message: %s\n", err)
+			}
+			r.input <- message
+		}
+
 	}
-	return message
 }
 
 func (r *RelayClient) RunClient() {
@@ -55,18 +87,25 @@ func (r *RelayClient) RunClient() {
 		return
 	}
 
+	go r.RunWorkers()
+	time.Sleep(time.Millisecond*100)
+	fmt.Print(r.ReceiveMessage())
 	for {
-		reader := bufio.NewReader(os.Stdin)
-		fmt.Print(">> ")
-		text, _ := reader.ReadString('\n')
-
-		r.SendMessage(text)
-
+		r.handleUserInput()
 		message := r.ReceiveMessage()
 		fmt.Printf("-> %s", message)
-		if strings.TrimSpace(string(text)) == "STOP" {
-			fmt.Println("TCP client exiting...")
-			return
-		}
+	}
+}
+
+func (r *RelayClient) handleUserInput() {
+	reader := bufio.NewReader(os.Stdin)
+	fmt.Print(">> ")
+	text, _ := reader.ReadString('\n')
+	r.SendMessage(text)
+
+	if strings.TrimSpace(string(text)) == "STOP" {
+		fmt.Println("TCP client exiting...")
+		r.Open = false
+		os.Exit(0)
 	}
 }

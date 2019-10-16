@@ -9,6 +9,8 @@ const (
 	STOP_PIPE       Command = "STOP_PIPE"
 	START_PIPE      Command = "START_PIPE"
 	IDENTIFY        Command = "IDENTITY"
+	IDENTITY_EXISTS Command = "IDENTITY_EXISTS"
+	IDENTITY_OK     Command = "IDENTITY_OK"
 )
 
 var Separator string = ":"
@@ -18,7 +20,9 @@ func CreateIdentification(name string) string {
 }
 
 func GetIdentification(command string) string {
-	return strings.Split(command, Separator)[1]
+	name := strings.Split(command, Separator)[1]
+	// Remove \n
+	return name[:len(name)-1]
 }
 
 func CreatePipeCommand(name string) string {
