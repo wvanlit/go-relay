@@ -30,5 +30,6 @@ func CreatePipeCommand(name string) string {
 }
 
 func GetNameFromPipeCommand(command string) string {
+	command = strings.TrimSuffix(command, "\n")
 	return strings.Split(command, Separator)[1]
 }

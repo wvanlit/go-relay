@@ -53,8 +53,7 @@ func (r *RelayClient) SendMessage(message string) {
 func (r *RelayClient) SendingWorker() {
 	for r.Open {
 		message := <-r.output
-		_, err := fmt.Fprintln(r.Connection, message)
-		fmt.Print("Sending:", message)
+		_, err := fmt.Fprint(r.Connection, message)
 		if err != nil {
 			fmt.Println("Error on sending message:", err)
 		}
@@ -88,10 +87,16 @@ func (r *RelayClient) RunClient() {
 	}
 
 	go r.RunWorkers()
-	time.Sleep(time.Millisecond*100)
+	time.Sleep(time.Millisecond * 100)
 	fmt.Print(r.ReceiveMessage())
+	go func() {
+		for {
+			r.handleUserInput()
+			time.Sleep(time.Millisecond*500)
+		}
+	}()
+
 	for {
-		r.handleUserInput()
 		message := r.ReceiveMessage()
 		fmt.Printf("-> %s", message)
 	}
@@ -102,7 +107,6 @@ func (r *RelayClient) handleUserInput() {
 	fmt.Print(">> ")
 	text, _ := reader.ReadString('\n')
 	r.SendMessage(text)
-
 	if strings.TrimSpace(string(text)) == "STOP" {
 		fmt.Println("TCP client exiting...")
 		r.Open = false
