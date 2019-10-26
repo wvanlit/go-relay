@@ -1,8 +1,8 @@
-package main
+package examples
 
 import (
 	"fmt"
-	relayClient "github.com/wvanlit/go-relay/client"
+	relayClient "github.com/wvanlit/go-relay/src/client"
 	"os"
 )
 
@@ -13,5 +13,5 @@ func main() {
 		return
 	}
 	client := relayClient.CreateRelayClient(arguments[1], arguments[2])
-	client.RunClient()
+	client.RunManualClient()
 }

@@ -1,8 +1,8 @@
-package main
+package examples
 
 import (
 	"fmt"
-	relayServer "github.com/wvanlit/go-relay/server"
+	relayServer "github.com/wvanlit/go-relay/src/server"
 	"os"
 )
 

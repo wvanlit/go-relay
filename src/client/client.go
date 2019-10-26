@@ -3,6 +3,7 @@ package client
 import (
 	"bufio"
 	"fmt"
+	"github.com/wvanlit/go-relay/src/global"
 	"io"
 	"net"
 	"os"
@@ -27,7 +28,7 @@ func CreateRelayClient(address string, port string) *RelayClient {
 	relay := &RelayClient{
 		Address:    addr,
 		Connection: conn,
-		Open:       true,
+		Open:       false,
 		reader:     bufio.NewReader(conn),
 		writer:     bufio.NewWriter(conn),
 		output:     make(chan string, 0),
@@ -41,21 +42,28 @@ func CreateRelayClient(address string, port string) *RelayClient {
 	return relay
 }
 
-func (r *RelayClient) RunWorkers() {
-	go r.SendingWorker()
-	go r.ReceivingWorker()
+func (r *RelayClient) runWorkers() {
+	go r.sendingWorker()
+	go r.receivingWorker()
 }
 
 func (r *RelayClient) SendMessage(message string) {
 	r.output <- message
 }
 
-func (r *RelayClient) SendingWorker() {
+func (r *RelayClient) sendingWorker() {
 	for r.Open {
 		message := <-r.output
-		_, err := fmt.Fprint(r.Connection, message)
-		if err != nil {
-			fmt.Println("Error on sending message:", err)
+		_, err := fmt.Fprintln(r.Connection, message)
+		if err != nil && err != io.EOF {
+			// Close on network error
+			_, ok := err.(*net.OpError)
+			if ok {
+				fmt.Println("Stopping Client -> ", err.(*net.OpError))
+				r.StopClient()
+			} else {
+				fmt.Printf("Error on Receive Message: %s\n", err)
+			}
 		}
 	}
 }
@@ -64,14 +72,20 @@ func (r *RelayClient) ReceiveMessage() string {
 	return <-r.input
 }
 
-func (r *RelayClient) ReceivingWorker() {
+func (r *RelayClient) receivingWorker() {
 	for r.Open {
 		select {
-
 		default:
 			message, err := r.reader.ReadString('\n')
 			if err != nil && err != io.EOF {
-				fmt.Printf("Error on Receive Message: %s\n", err)
+				// Close on network error
+				_, ok := err.(*net.OpError)
+				if ok {
+					fmt.Println("Stopping Client -> ", err.(*net.OpError))
+					r.StopClient()
+				} else {
+					fmt.Printf("Error on Receive Message: %s\n", err)
+				}
 			}
 			r.input <- message
 		}
@@ -79,20 +93,20 @@ func (r *RelayClient) ReceivingWorker() {
 	}
 }
 
-func (r *RelayClient) RunClient() {
+func (r *RelayClient) RunManualClient() {
 	defer r.Connection.Close()
-	if !r.Open {
-		fmt.Println("Connection not open!")
+	if r.Open {
+		fmt.Println("Connection already open!")
 		return
 	}
-
-	go r.RunWorkers()
+	r.Open = true
+	go r.runWorkers()
 	time.Sleep(time.Millisecond * 100)
 	fmt.Print(r.ReceiveMessage())
 	go func() {
 		for {
 			r.handleUserInput()
-			time.Sleep(time.Millisecond*500)
+			time.Sleep(time.Millisecond * 500)
 		}
 	}()
 
@@ -112,4 +126,29 @@ func (r *RelayClient) handleUserInput() {
 		r.Open = false
 		os.Exit(0)
 	}
+}
+
+func (r *RelayClient) StartClient(username string) error {
+	if r.Open {
+		return fmt.Errorf("connection already open")
+	}
+	r.Open = true
+
+	go r.runWorkers()
+	// Identify
+	_ = r.ReceiveMessage()
+	r.SendMessage(global.CreateIdentification(username) + "\n")
+	message := r.ReceiveMessage()
+	if !strings.Contains(message, string(global.IDENTITY_OK)) {
+		return fmt.Errorf("username '%s' not allowed -> %s", username, message)
+	}
+
+	return nil
+}
+
+func (r *RelayClient) StopClient() {
+	r.SendMessage(string(global.STOP_CONNECTION) + "\n")
+	r.Open = false
+	time.Sleep(time.Second)
+	r.Connection.Close()
 }

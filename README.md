@@ -1,18 +1,16 @@
 # go-relay
-A Relay Server and Client made in Go that can handle up to 750+ concurrent connections. It's recommended that you keep the connections below 200, especially if you're using a lot of pipes as the overhead slows down the server significantly.
+A simple message relay written in Go using TCP connections.
+It can handle multiple concurrent connections that communicate with either the server or to another client.
 
-### Protocol
-To start a connection the following protocol should be followed:
-1. A client is created : `client := relayClient.CreateTCPClient(clientName, hostname, port, messageSize)`
-2. The client is started : `client.Start()`
-3. The client identifies itself to the server : `client.Identify()`
-4. The client is now free to send commands or messages to the server
+All connections between clients are one-to-one.
 
-To stop a connection use `client.Stop()` or manually send `relay.CLOSE_CONNECTION` to the server.
+### Starting a Connection
 
-### Commands
-When a client is connected to the server, it can send commands to perform actions.
+The following protocol is used to start a connection:
+1. Start connection with the server
+1. Identify yourself via `IDENTITY:USERNAME`
+1. You'll receive a response with the availability of the username
+1. If your username is available then you've succesfully started a connection
 
-To start a pipe with another connection either use `client.StartPipe(target)` or directly send `relay.START_PIPE+':'+target` to the server.
-
-To stop a pipe use `client.StopPipe()` or directly send `relay.STOP_PIPE` to the server.
+### Starting a Pipe
+To start a pipe send the following message `START_PIPE:TARGET` where target is the username of the client you want to connect with.

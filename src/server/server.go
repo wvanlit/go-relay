@@ -3,7 +3,7 @@ package server
 import (
 	"bufio"
 	"fmt"
-	"github.com/wvanlit/go-relay/global"
+	"github.com/wvanlit/go-relay/src/global"
 	"net"
 	"sync"
 )
@@ -79,7 +79,7 @@ func (r *RelayServer) handleConnectionMessages() {
 	for {
 		select {
 		case command := <-r.ConnectionMessages:
-			command.ProcessMessage(r)
+			ProcessMessage(r)
 		}
 	}
 }

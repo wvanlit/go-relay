@@ -3,7 +3,7 @@ package server
 import (
 	"bufio"
 	"fmt"
-	"github.com/wvanlit/go-relay/global"
+	"github.com/wvanlit/go-relay/src/global"
 	"io"
 	"net"
 	"strings"
@@ -178,14 +178,15 @@ func (c *RelayConnection) processMessage(message string) {
 			return
 		}
 	}
+	// Handle Exit
+	if strings.Contains(message, string(global.STOP_CONNECTION)){
+		c.closeConnection()
+		return
+	}
 
 	// Return server time
 	t := time.Now()
 	myTime := t.Format(time.RFC3339)
 
 	c.SendMessage(myTime)
-}
-
-func (c *RelayConnection) startPipe(target string) {
-
 }

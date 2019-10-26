@@ -2,7 +2,7 @@ package server
 
 import (
 	"fmt"
-	"github.com/wvanlit/go-relay/global"
+	"github.com/wvanlit/go-relay/src/global"
 )
 
 type RequestPipeMessage struct {
